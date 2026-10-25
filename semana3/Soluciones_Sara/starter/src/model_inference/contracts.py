@@ -27,7 +27,7 @@ class WineQualityPrediction(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sample_id: str  = Field(min_length=1)
-    quality_band: Literal["poor", "acceptable", "good"]
+    quality_band: Literal["needs_review", "acceptable", "excellent"]
     confidence: float = Field(ge=0, le=1)
     model_version: str
     preprocessing_version: str
