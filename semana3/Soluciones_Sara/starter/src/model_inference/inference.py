@@ -12,7 +12,7 @@ import pandas as pd
 from .preprocess import FEATURE_NAMES, WineFeatures
 
 
-DEFAULT_MODEL_PATH = (Path(__file__).resolve().parent / "wine_quality_model.joblib")
+DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[2] / "wine_quality_classifier.joblib"
 
 
 def load_wine_quality_model(model_path=DEFAULT_MODEL_PATH):
