@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from model_packaging.contracts import (
     QualityBand,
@@ -19,8 +19,16 @@ from model_packaging.contracts import (
     WineQualityRequest,
 )
 
+from model_packaging.preprocess import (
+    FEATURE_NAMES,
+    PREPROCESSING_VERSION,
+    preprocess_wine_request,
+)
+
 ARTIFACT_SCHEMA_VERSION = "wine-quality-bundle-v1"
-DEFAULT_BUNDLE_PATH = Path("models/wine_quality_bundle")
+DEFAULT_BUNDLE_PATH = (
+    Path(__file__).resolve().parents[5] / "Modelo"
+)
 MANIFEST_FILENAME = "manifest.json"
 MODEL_FILENAME = "model.joblib"
 OUTPUT_LABELS: tuple[QualityBand, ...] = (
@@ -28,19 +36,7 @@ OUTPUT_LABELS: tuple[QualityBand, ...] = (
     "acceptable",
     "excellent",
 )
-EXPECTED_FEATURE_NAMES= (
-    "fixed_acidity",
-    "volatile_acidity",
-    "citric_acid",
-    "residual_sugar",
-    "chlorides",
-    "free_sulfur_dioxide",
-    "total_sulfur_dioxide",
-    "density",
-    "ph",
-    "sulphates",
-    "alcohol",
-    )
+
 
 class WineQualityEstimator(Protocol):
     """Interfaz mínima que debe cumplir el estimador cargado."""
@@ -63,6 +59,24 @@ class ArtifactManifest(BaseModel):
     feature_names: tuple[str, ...]
     output_labels: tuple[QualityBand, ...]
     estimator_type: str = Field(min_length=1)
+@model_validator(mode="after")
+def validate_contract(self):
+    if self.schema_version != ARTIFACT_SCHEMA_VERSION:
+        raise ValueError("Versión del esquema incompatible")
+
+    if self.preprocessing_version != PREPROCESSING_VERSION:
+        raise ValueError("Versión del preprocesamiento incompatible")
+
+    if self.feature_names != FEATURE_NAMES:
+        raise ValueError("Características incompatibles")
+
+    if self.output_labels != OUTPUT_LABELS:
+        raise ValueError("Etiquetas incompatibles")
+
+    if not self.model_version.strip():
+        raise ValueError("La versión del modelo está vacía")
+
+    return self
 
 
 @dataclass(frozen=True)
@@ -82,7 +96,7 @@ def create_manifest(
         schema_version=ARTIFACT_SCHEMA_VERSION,
         model_version=model_version,
         preprocessing_version="wine-red-features-v1",
-        feature_names=EXPECTED_FEATURE_NAMES,
+        feature_names=FEATURE_NAMES,
         output_labels=OUTPUT_LABELS,
         estimator_type=type(estimator).__name__,
     )
@@ -102,7 +116,10 @@ def save_model_bundle(
             model_version="wine-quality-rf-demo-v1"
         )
        
-    joblib.dump(estimator, bundle_path / MODEL_FILENAME) #Guardar el modelo entrenado
+    joblib.dump(
+    {"estimator": estimator},
+    bundle_path / MODEL_FILENAME,
+    compress=3) #Guardar el modelo entrenado
 
     
     with (bundle_path / MANIFEST_FILENAME).open( #Guardar el manifiesto
@@ -147,14 +164,21 @@ def load_model_bundle(bundle_path: Path) -> LoadedModelBundle:
         raise ValueError(
             "La versión del esquema no es compatible"
         )
-    if manifest.feature_names != EXPECTED_FEATURE_NAMES:
+    if manifest.feature_names != FEATURE_NAMES:
         raise ValueError(
         "El orden o los nombres de las features "
         "no coinciden con el contrato esperado"
     )
 
     # 4.Cargar el estimador (solo si procede de una fuente confiable)
-    estimator = joblib.load(model_path)
+    # 4. Cargar el modelo
+    payload = joblib.load(model_path)
+
+    # Extraer el estimador del diccionario
+    if not isinstance(payload, dict) or "estimator" not in payload:
+        raise ValueError("El artefacto no contiene un estimador")
+
+    estimator = payload["estimator"]
 
     # 5.Comprobar el tipo de estimador
     if type(estimator).__name__ != manifest.estimator_type:
@@ -176,35 +200,31 @@ def infer_wine_quality(
     request: WineQualityRequest,
 ) -> WineQualityPrediction:
     """TODO: preprocesa, invoca el estimador y valida la respuesta."""
-    # 1. Obtener los datos de entrada
-    datos = request.model_dump()
+    features = preprocess_wine_request(request)
+    matrix = [features.as_vector()]
 
-    # 2. Colocar las features en el orden correcto
-    features = [
-        float(datos[name])
-        for name in bundle.manifest.feature_names
-    ]
+    #Realizar la predicción
+    prediccion = bundle.estimator.predict([matrix])[0]
 
-    # 3. Realizar la predicción
-    prediccion = bundle.estimator.predict([features])[0]
-
-    # 4. Validar la etiqueta de salida
+    #Validar la etiqueta de salida
     if prediccion not in bundle.manifest.output_labels:
         raise ValueError(
             f"Etiqueta no permitida: {prediccion}"
         )
 
-    # 5. Obtener la confianza de la predicción
-    probabilidades = bundle.estimator.predict_proba([features])[0]
+    #Obtener la confianza de la predicción
+    probabilidades = bundle.estimator.predict_proba([matrix])[0]
 
     clases = list(bundle.estimator.classes_)
     indice = clases.index(prediccion)
     confianza = float(probabilidades[indice])
 
-    # 6. Construir la respuesta
+    #Construir la respuesta
     return WineQualityPrediction(
         quality_band=prediccion,
         confidence=confianza,
         model_version=bundle.manifest.model_version,
         preprocessing_version=bundle.manifest.preprocessing_version,
     )
+
+

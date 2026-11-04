@@ -1,24 +1,26 @@
 """Punto de extensión del CLI de inferencia sobre un bundle."""
 
 from __future__ import annotations
-
+import argparse
 import csv
 
-import argparse
-from pathlib import Path
 
-from model_packaging.artifact import DEFAULT_BUNDLE_PATH
-from model_packaging.contracts import WineQualityRequest
+from pathlib import Path
 from model_packaging.artifact import (
+    DEFAULT_BUNDLE_PATH,
     load_model_bundle,
     infer_wine_quality,
 )
+
+from model_packaging.contracts import WineQualityRequest
+
 
 def predict_file(
     input_path: Path,
     output_path: Path,
     bundle_path: Path,
 ) -> int:
+    """TODO: valida todas las filas y escribe el CSV solo al final."""
     # 1. Cargar el modelo y su manifiesto
     bundle = load_model_bundle(bundle_path)
 
@@ -54,6 +56,8 @@ def predict_file(
         try:
         # Separar el identificador de la muestra
             sample_id = row["sample_id"]
+            if not sample_id or not sample_id.strip():
+                raise ValueError("sample_id no puede estar vacío")
 
             # Extraer únicamente las 11 features
             features = {
@@ -77,6 +81,7 @@ def predict_file(
             ) from exc
 
     # 4. Escribir el CSV al terminar todas las predicciones
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_columns = [
         "sample_id",
         "quality_band",
