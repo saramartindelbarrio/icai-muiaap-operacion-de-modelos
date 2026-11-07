@@ -10,7 +10,7 @@ import argparse
 import csv
 import os
 import sys
-
+import tempfile
 from pydantic import ValidationError
 
 from .contracts import WineQualityRequest, WineQualityPrediction
@@ -96,20 +96,51 @@ def main(argv=None):
         print(f"Error: {error}", file=sys.stderr)
         return 2
 
-    # Guardar solo cuando todas las muestras sean válidas
-    output_dir = os.path.dirname(args.output)
+    # Crear el directorio de salida
+    output_dir = os.path.dirname(os.path.abspath(args.output))
+    temp_path = None
 
-    if output_dir:
+
+    try:
         os.makedirs(output_dir, exist_ok=True)
 
-    with open(args.output, "w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file,fieldnames=OUTPUT_COLUMNS)
-        writer.writeheader()
-        for prediction in predictions:
-            writer.writerow(prediction.model_dump())
+        # Crear un archivo temporal en el mismo directorio
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            newline="",
+            encoding="utf-8",
+            dir=output_dir,
+            suffix=".tmp",
+            delete=False
+        ) as file:
+
+            temp_path = file.name
+
+            writer = csv.DictWriter(
+                file,
+                fieldnames=OUTPUT_COLUMNS
+            )
+            writer.writeheader()
+
+            for prediction in predictions:
+                writer.writerow(prediction.model_dump())
+
+        # Sustituir el archivo definitivo al terminar
+        os.replace(temp_path, args.output)
+        temp_path = None
+
+    except OSError as error:
+        print(f"Error al guardar el archivo: {error}", file=sys.stderr)
+        return 2
+
+    finally:
+        # Eliminar el temporal si algo ha fallado
+        if temp_path is not None and os.path.exists(temp_path):
+            os.remove(temp_path)
 
     print(f"Se han predicho {len(predictions)} vinos")
     return 0
+
 
 
 if __name__ == "__main__":

@@ -22,9 +22,14 @@ def load_wine_quality_model(model_path=DEFAULT_MODEL_PATH):
     # Comprobar que contiene un clasificador
     if not isinstance(model, dict):
         raise ValueError("Artefacto inválido")
+   
+    estimator = model.get("estimator")
 
-    if "estimator" not in model or not callable(getattr(model["estimator"], "predict", None)):
+    if not callable(getattr(estimator, "predict", None)):
         raise ValueError("El modelo no contiene un clasificador compatible")
+
+    if not callable(getattr(estimator, "predict_proba", None)):
+        raise ValueError("El clasificador no permite calcular probabilidades")
 
     # Comprobar el orden de las características
     if tuple(model.get("feature_names", ())) != FEATURE_NAMES:
