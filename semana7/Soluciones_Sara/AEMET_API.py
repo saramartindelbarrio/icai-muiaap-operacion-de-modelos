@@ -24,6 +24,12 @@ response = requests.get(url, params=params)
 print(response.status_code)
 print(response.json())
 
+# La petición devuelve un diccionario que contiene una URL en el campo "datos".
+# He accedido a esa URL desde el navegador y he utilizado Ctrl + F
+# para buscar la estación "MADRID, CIUDAD UNIVERSITARIA".
+# De ahí he obtenido manualmente su indicativo (idema): 3194U.
+
+
 idema = "3194U"
 fechaIniStr = "2019-10-01T00:00:00UTC"
 fechaFinStr = "2019-10-30T23:59:59UTC"
@@ -31,11 +37,6 @@ url_diaria= f'https://opendata.aemet.es/opendata/api/valores/climatologicos/diar
 respuesta = requests.get(url_diaria, params=params)
 print(respuesta.status_code)
 print(respuesta.json())
-
-# La petición devuelve un diccionario que contiene una URL en el campo "datos".
-# He accedido a esa URL desde el navegador y he utilizado Ctrl + F
-# para buscar la estación "MADRID, CIUDAD UNIVERSITARIA".
-# De ahí he obtenido manualmente su indicativo (idema): 3194U.
 
 #Para ver los datos metereológicos:
 # Obtenemos la URL que contiene los datos climatológicos
