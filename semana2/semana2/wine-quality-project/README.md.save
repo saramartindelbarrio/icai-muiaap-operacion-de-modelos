@@ -1,0 +1,27 @@
+Wine Quality
+Proyecto de la semana 2
+El proyectto utiliza uv para gestionar el entorno y las dependencias.
+
+
+Instalación 
+
+Para instalar el entorno reproducible
+uv sync --locked
+
+Estructura del proyecto 
+
+
+wine-quality-project/
+├── data/
+│   └── raw/
+│       └── WineQT.csv
+├── src/
+│   └── wine_quality/
+│       ├── __init__.py
+│       └── train.py
+├── tests/
+│   └── test_train.py
+├── pyproject.toml
+├── uv.lock
+└── README.md
+
